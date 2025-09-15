@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Local apps
     "apps.botapp",
+    "main",
 ]
 
 MIDDLEWARE = [
