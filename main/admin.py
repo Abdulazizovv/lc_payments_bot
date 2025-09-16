@@ -34,7 +34,7 @@ class PaymentInline(admin.TabularInline):
 # Group Admin
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
-    list_display = ("title", "monthly_fee", "is_active", "student_count", "created_at")
+    list_display = ("chat_id", "title", "monthly_fee", "is_active", "student_count", "created_at")
     list_filter = ("is_active", "created_at", "updated_at")
     search_fields = ("title", "description")
     date_hierarchy = "created_at"
@@ -67,7 +67,7 @@ class GroupAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            "fields": ("title", "description")
+            "fields": ("title", "description", "chat_id")
         }),
         ("Finance", {
             "fields": ("monthly_fee",)

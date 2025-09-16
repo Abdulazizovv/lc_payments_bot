@@ -37,7 +37,9 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://92.51.23.184:8088"
+    "http://92.51.23.184:8088",
+    "http://127.0.0.1:8088",
+    "http://127.0.0.1:8080",
 ]
 
 # Application definition

@@ -19,7 +19,7 @@ def fmt_amount(n: int) -> str:
 def month_label(d: date) -> str:
     uz_months = [
         "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-        "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr",
+        "Iyul", "Avgust", "Sentabr", "Oktyabr", "Noyabr", "Dekabr",
     ]
     return f"{uz_months[d.month-1]} {d.year}"
 
@@ -279,25 +279,29 @@ async def pay_confirm_cb(call: types.CallbackQuery, state: FSMContext):
         created_by=creator if creator else None,
     )
 
+
+
+    await state.finish()
+    # Show payments page after successful accept
+    text, kb = await build_payments_page(page=1)
+    await safe_edit_cb(call, text, kb)
+    await call.answer()
     # Notify group chat if chat_id is available
-    chat_id = (enrollment.group.chat_id or '').strip() if enrollment.group and enrollment.group.chat_id else None
+    chat_id = (enrollment.group.chat_id or enrollment.chat_id or '').strip()
+    print("Chat ID:", chat_id)
     if chat_id:
         notify_text = (
             "✅ To'lov qabul qilindi\n"
-            f"O'quvchi: {enrollment.student.full_name}\n"
+            f"O'quvchi: {str(enrollment.student.full_name).capitalize()}\n"
+            f"Guruh: {enrollment.group.title if enrollment.group else 'Belgilanmagan'}\n"
             f"Oy: {month_label(month)}\n"
         )
         try:
             await dp.bot.send_message(chat_id, notify_text, disable_notification=True)
-        except Exception:
+        except Exception as err:
             # Ignore if bot cannot send to the group
+            print(f"Error sending payment notification: {err}")
             pass
-
-    await state.finish()
-    # Show payments page after successful accept92.51.23.184
-    text, kb = await build_payments_page(page=1)
-    await safe_edit_cb(call, text, kb)
-    await call.answer()
 
 
 @dp.callback_query_handler(IsAdmin(), text='pay:cancel_flow', state='*')

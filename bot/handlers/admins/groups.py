@@ -8,7 +8,7 @@ from bot.keyboards.inline.admin import groups_list_kb, group_item_kb, group_stud
 from main.models import Group, Student, Payment, Enrollment
 from bot.states.admin import CreateGroupState
 
-PAGE_SIZE = 10
+PAGE_SIZE = 100
 
 # Reply keyboard labels
 CANCEL_TEXT = "❌ Bekor qilish"
