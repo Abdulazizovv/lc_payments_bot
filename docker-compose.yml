@@ -48,7 +48,7 @@ services:
     container_name: project_nginx
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "8088:80"
     volumes:
       - static_volume:/usr/src/app/staticfiles
       - media_volume:/usr/src/app/media
