@@ -65,6 +65,7 @@ async def show_finance_dashboard(msg: types.Message):
     today_total = await sync_to_async(agg_range)(start_today)
     week_total = await sync_to_async(agg_range)(start_week)
     month_total = await sync_to_async(agg_range)(start_month)
+    
 
     # Per-creator for today/week/month
     def per_creator(start_dt):
@@ -80,6 +81,15 @@ async def show_finance_dashboard(msg: types.Message):
 
     # Per-group current month expected vs collected and past arrears
     cur_month = month_start(now)
+
+    # Overall current month expected vs collected
+    def expected_all_current():
+        return Enrollment.objects.filter(is_active=True).aggregate(total=Sum('monthly_fee')).get('total') or 0
+
+    def collected_all_current():
+        return Payment.objects.filter(month=cur_month.date()).aggregate(total=Sum('amount')).get('total') or 0
+
+    overall_expected, overall_collected = await sync_to_async(expected_all_current)(), await sync_to_async(collected_all_current)()
 
     def group_summaries():
         groups = list(Group.objects.filter(is_active=True).order_by('title'))
@@ -111,6 +121,7 @@ async def show_finance_dashboard(msg: types.Message):
         f"Bugun: {fmt_amount(today_total)} so'm",
         f"Hafta boshidan: {fmt_amount(week_total)} so'm",
         f"Oy boshidan: {fmt_amount(month_total)} so'm",
+        f"🧮 Joriy oy (umumiy): kerak {fmt_amount(overall_expected)} | yig'ildi {fmt_amount(overall_collected)}",
         "",
         "👤 Yaratganlar bo'yicha (bugun):",
     ]
