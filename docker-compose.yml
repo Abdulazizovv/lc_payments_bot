@@ -12,7 +12,7 @@ services:
       - static_volume:/usr/src/app/staticfiles
       - media_volume:/usr/src/app/media
     ports:
-      - "8001:8000"
+      - "8008:8000"
     depends_on:
       - db
 
