@@ -36,6 +36,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8088",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://92.51.23.184:8088"
+]
 
 # Application definition
 
