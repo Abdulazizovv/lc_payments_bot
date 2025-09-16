@@ -1,5 +1,8 @@
 from django.db import models
 from django.utils import timezone
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from apps.botapp.models import BotUser
 
 
 class Group(models.Model):
@@ -40,10 +43,15 @@ class Enrollment(models.Model):
             self.chat_id = self.group.chat_id
         super().save(*args, **kwargs)
     
+    def __str__(self):
+        return f"{self.student.full_name} in {self.group.title}"
+    
 
 class Payment(models.Model):
     enrollment: "Enrollment" = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='payments')
     amount = models.BigIntegerField()
     month = models.DateField() # Represents the month for which the payment is made
     paid_at = models.DateTimeField(auto_now_add=True)
+    
+    created_by: "BotUser" = models.ForeignKey("botapp.BotUser", on_delete=models.SET_NULL, null=True, blank=True)
     

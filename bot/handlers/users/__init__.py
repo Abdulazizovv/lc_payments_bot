@@ -1,3 +1,3 @@
-from . import help
 from . import start
-from . import echo
+from . import debug
+from . import promote_admin

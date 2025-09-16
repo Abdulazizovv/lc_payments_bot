@@ -20,6 +20,3 @@ async def bot_start(message: types.Message, state: FSMContext):
         first_name=user.first_name,
         last_name=user.last_name,
     )
-
-    await message.answer(f"Hello, {message.from_user.full_name}!\nWelcome to the bot.")
-

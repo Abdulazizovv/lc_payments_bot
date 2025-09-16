@@ -4,7 +4,7 @@ from bot.data import config
 from bot.utils.db_api.db import DB
 
 
-bot = Bot(token=config.BOT_TOKEN, parse_mode=types.ParseMode.HTML)
+bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 db = DB()

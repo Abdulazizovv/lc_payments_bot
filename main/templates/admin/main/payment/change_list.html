@@ -1,0 +1,53 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block content_title %}
+  {{ block.super }}
+  {% if report %}
+  <div style="margin-top:8px"></div>
+  <div class="module" id="payment-reports" style="padding:12px">
+    <h2>{% trans "Reports" %}</h2>
+    <form method="get" style="margin-bottom:8px">
+      {# Preserve existing filters #}
+      {% for k, v in request.GET.items %}
+        {% if k != 'target_month' %}
+          <input type="hidden" name="{{ k }}" value="{{ v }}" />
+        {% endif %}
+      {% endfor %}
+      <label>{% trans "Select month" %}: 
+        <input type="month" name="target_month" value="{{ report.selected_month_str }}" />
+      </label>
+      <button type="submit" class="button">{% trans "Apply" %}</button>
+    </form>
+
+    <div class="results">
+      <table>
+        <thead>
+          <tr>
+            <th>{% trans "Metric" %}</th>
+            <th>{% trans "Amount" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{% trans "Current month expected" %} ({{ report.current_month_str }})</td>
+            <td><strong>{{ report.expected_current }}</strong></td>
+          </tr>
+          <tr>
+            <td>{% trans "Current month collected" %} ({{ report.current_month_str }})</td>
+            <td><strong>{{ report.collected_current }}</strong></td>
+          </tr>
+          <tr>
+            <td>{% trans "Selected month expected" %} ({{ report.selected_month_str }})</td>
+            <td><strong>{{ report.expected_selected }}</strong></td>
+          </tr>
+          <tr>
+            <td>{% trans "Selected month collected" %} ({{ report.selected_month_str }})</td>
+            <td><strong>{{ report.collected_selected }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+{% endblock %}
