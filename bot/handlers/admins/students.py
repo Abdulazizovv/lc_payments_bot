@@ -126,15 +126,21 @@ async def student_detail(call: types.CallbackQuery, state: FSMContext):
     lines = [
         f"👤 {student.full_name}",
         f"📞 {student.phone_number or '-'}",
+        "",
     ]
     if enrollments:
-        lines.append("\nGuruhlar (joriy oy):")
+        lines.append("🏷️ Guruhlar (joriy oy):")
         for e in enrollments:
             paid_m = await sync_to_async(lambda: Payment.objects.filter(enrollment=e, month=cur_month.date()).aggregate(total=models.Sum('amount')).get('total') or 0)()
-            due_m = max((e.monthly_fee or 0) - paid_m, 0)
-            lines.append(f"• {e.group.title} — oy: {fmt_amount(e.monthly_fee)} so'm | to'langan: {fmt_amount(paid_m)} | qarz: {fmt_amount(due_m)}")
+            need_m = e.monthly_fee or 0
+            due_m = max(need_m - paid_m, 0)
+            lines += [
+                f"• {e.group.title}",
+                f"  Kerak: {fmt_amount(need_m)} so'm | To'langan: {fmt_amount(paid_m)} so'm",
+                f"  Qolgan: {fmt_amount(due_m)} so'm",
+            ]
     else:
-        lines.append("\nGuruhlar: yo'q")
+        lines.append("🏷️ Guruhlar: yo'q")
 
     # Total arrears since joining
     def total_arrears():
@@ -151,21 +157,31 @@ async def student_detail(call: types.CallbackQuery, state: FSMContext):
 
     arrears_total = await sync_to_async(total_arrears)()
 
-    lines.append("\nTo'lovlar:")
-    lines.append(f"• Jami to'lovlar soni: {payments_count}")
-    lines.append(f"• Jami to'langan: {fmt_amount(total_paid)} so'm")
-    lines.append(f"• Umumiy qarz: {fmt_amount(arrears_total)} so'm")
+    lines += [
+        "",
+        "📊 Umumiy ma'lumot:",
+        f"  • To'lovlar soni: {payments_count}",
+        f"  • Jami to'langan: {fmt_amount(total_paid)} so'm",
+        f"  • Umumiy qarz: {fmt_amount(arrears_total)} so'm",
+    ]
 
     if last_payments:
-        lines.append("\nOxirgi to'lovlar:")
+        lines += ["", "🧾 Oxirgi to'lovlar:"]
         for p in last_payments:
-            creator = p.created_by.username if getattr(p.created_by, 'username', None) else (getattr(p.created_by, 'full_name', None) if p.created_by else "")
-            creator_text = f" — {creator}" if creator else ""
-            lines.append(
-                f"• {p.month.strftime('%Y-%m')} — {p.enrollment.group.title}: {fmt_amount(p.amount)} so'm ( {p.paid_at.strftime('%Y-%m-%d %H:%M')} ){creator_text}"
-            )
+            creator = None
+            if getattr(p, 'created_by', None):
+                creator = p.created_by.username or getattr(p.created_by, 'full_name', None) or str(p.created_by)
+            lines += [
+                f"• Oy: {p.month.strftime('%Y-%m')}",
+                f"  Guruh: {p.enrollment.group.title}",
+                f"  Summa: {fmt_amount(p.amount)} so'm",
+                f"  Sana: {p.paid_at.strftime('%Y-%m-%d %H:%M')}",
+            ]
+            if creator:
+                lines.append(f"  Qabul qilgan: {creator}")
+            lines.append("")
 
-    text = "\n".join(lines)
+    text = "\n".join([l for l in lines if l is not None]).rstrip()
 
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
@@ -384,3 +400,78 @@ async def create_student_save(message: types.Message, state: FSMContext):
     )
     await message.answer("✅ O'quvchi yaratildi. Guruhga qo'shasizmi?", reply_markup=types.ReplyKeyboardRemove())
     await message.answer("Quyidagi variantlardan birini tanlang:", reply_markup=kb)
+
+
+# =================== Global Debtors (Main menu) ===================
+
+@dp.callback_query_handler(IsAdmin(), lambda c: c.data.startswith('adm:debtors:p:'), state='*')
+async def global_debtors_paged(call: types.CallbackQuery, state: FSMContext):
+    from django.utils import timezone
+    from django.db.models import Sum
+    now = timezone.now()
+    cur_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    # Build student -> (due_current_sum, debt_total_sum)
+    enr_qs = Enrollment.objects.filter(is_active=True).select_related('student')
+
+    # Accumulate per student
+    def compute_items():
+        agg = {}
+        for e in enr_qs:
+            paid_m = Payment.objects.filter(enrollment=e, month=cur_month.date()).aggregate(total=Sum('amount')).get('total') or 0
+            need_m = e.monthly_fee or 0
+            due_m = max(need_m - paid_m, 0)
+            joined_m = cur_month.replace(year=e.joined_at.year, month=e.joined_at.month)
+            months = max((cur_month.year - joined_m.year) * 12 + (cur_month.month - joined_m.month) + 1, 1)
+            expected = months * (e.monthly_fee or 0)
+            paid_total = Payment.objects.filter(enrollment=e, month__gte=joined_m.date(), month__lte=cur_month.date()).aggregate(total=Sum('amount')).get('total') or 0
+            debt_total = max(expected - paid_total, 0)
+            sid = e.student_id
+            name = e.student.full_name
+            if sid not in agg:
+                agg[sid] = [name, 0, 0]
+            agg[sid][1] += due_m
+            agg[sid][2] += debt_total
+        # Prepare items, filter those with any debt
+        items = [(name, dm, dt) for _, (name, dm, dt) in agg.items() if dm > 0 or dt > 0]
+        # Sort by total debt desc, then current due desc, then name
+        items.sort(key=lambda x: (x[2], x[1], x[0]), reverse=True)
+        return items
+
+    items = await sync_to_async(compute_items)()
+
+    page = int(call.data.split(':')[-1])
+    total = len(items)
+    page_size = 10
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    page = max(min(page, total_pages), 1)
+    offset = (page - 1) * page_size
+    page_items = items[offset:offset+page_size]
+
+    lines = [
+        "💳 Qarzdorlar (eng ko'pdan kamga):",
+        f"Sahifa: {page}/{total_pages}",
+        "",
+    ]
+    if page_items:
+        for name, dm, dt in page_items:
+            lines += [
+                f"• {name}",
+                f"  Joriy oy: {fmt_amount(dm)} so'm",
+                f"  Jami qarz: {fmt_amount(dt)} so'm",
+                "",
+            ]
+    else:
+        lines.append("Qarzdorlar yo'q")
+
+    text = "\n".join([l for l in lines if l is not None]).rstrip()
+
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    nav = simple_pager('adm:debtors', page, total_pages)
+    if nav and nav.inline_keyboard:
+        for row in nav.inline_keyboard:
+            kb.row(*row)
+    kb.add(types.InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="adm:back:home"))
+
+    await safe_edit(call, text, kb)
+    await call.answer()

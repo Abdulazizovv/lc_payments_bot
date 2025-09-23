@@ -55,6 +55,7 @@ async def finance_check_password(message: types.Message, state: FSMContext):
 
 async def show_finance_dashboard(msg: types.Message):
     now = timezone.now()
+    local_now = timezone.localtime(now)
     start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start_week = (start_today - timedelta(days=start_today.weekday()))
     start_month = start_today.replace(day=1)
@@ -90,6 +91,7 @@ async def show_finance_dashboard(msg: types.Message):
         return Payment.objects.filter(month=cur_month.date()).aggregate(total=Sum('amount')).get('total') or 0
 
     overall_expected, overall_collected = await sync_to_async(expected_all_current)(), await sync_to_async(collected_all_current)()
+    overall_remaining = max((overall_expected - overall_collected), 0)
 
     def group_summaries():
         groups = list(Group.objects.filter(is_active=True).order_by('title'))
@@ -111,47 +113,61 @@ async def show_finance_dashboard(msg: types.Message):
             arrears_past = 0
             for enr in enr_qs:
                 arrears_past += _enr_past_debt(enr)
-            data.append((g.title, expected_current, collected_current, arrears_past))
+            remaining_current = max((expected_current - collected_current), 0)
+            data.append((g.title, expected_current, collected_current, remaining_current, arrears_past))
         return data
 
     groups_data = await sync_to_async(group_summaries)()
 
     lines = [
-        "📊 Moliya hisobotlari",
-        f"Bugun: {fmt_amount(today_total)} so'm",
-        f"Hafta boshidan: {fmt_amount(week_total)} so'm",
-        f"Oy boshidan: {fmt_amount(month_total)} so'm",
-        f"🧮 Joriy oy (umumiy): kerak {fmt_amount(overall_expected)} | yig'ildi {fmt_amount(overall_collected)}",
+        "📊 Moliya — umumiy ko'rinish",
+        f"🕒 Yangilanish: {local_now.strftime('%Y-%m-%d %H:%M')}",
         "",
-        "👤 Yaratganlar bo'yicha (bugun):",
+        "💵 Kirimlar:",
+        f"  • Bugun: {fmt_amount(today_total)} so'm",
+        f"  • Hafta boshidan: {fmt_amount(week_total)} so'm",
+        f"  • Oy boshidan: {fmt_amount(month_total)} so'm",
+        "",
+        "🧮 Joriy oy (umumiy):",
+        f"  • Kerak: {fmt_amount(overall_expected)} so'm",
+        f"  • Yig'ildi: {fmt_amount(overall_collected)} so'm",
+        f"  • Qolgan: {fmt_amount(overall_remaining)} so'm",
+        "",
+        "👤 Yaratganlar:",
+        "  • Bugun:",
     ]
     if creators_today:
         for c in creators_today:
             name = c['created_by__username'] or f"{(c['created_by__first_name'] or '')} {(c['created_by__last_name'] or '')}".strip() or "Noma'lum"
-            lines.append(f"• {name}: {fmt_amount(c['total'])} so'm")
+            lines.append(f"    - {name}: {fmt_amount(c['total'])} so'm")
     else:
-        lines.append("Ma'lumot yo'q")
+        lines.append("    - Ma'lumot yo'q")
 
-    lines += ["", "👤 Yaratganlar bo'yicha (hafta):"]
+    lines += ["  • Hafta:"]
     if creators_week:
         for c in creators_week:
             name = c['created_by__username'] or f"{(c['created_by__first_name'] or '')} {(c['created_by__last_name'] or '')}".strip() or "Noma'lum"
-            lines.append(f"• {name}: {fmt_amount(c['total'])} so'm")
+            lines.append(f"    - {name}: {fmt_amount(c['total'])} so'm")
     else:
-        lines.append("Ma'lumot yo'q")
+        lines.append("    - Ma'lumot yo'q")
 
-    lines += ["", "👤 Yaratganlar bo'yicha (oy):"]
+    lines += ["  • Oy:"]
     if creators_month:
         for c in creators_month:
             name = c['created_by__username'] or f"{(c['created_by__first_name'] or '')} {(c['created_by__last_name'] or '')}".strip() or "Noma'lum"
-            lines.append(f"• {name}: {fmt_amount(c['total'])} so'm")
+            lines.append(f"    - {name}: {fmt_amount(c['total'])} so'm")
     else:
-        lines.append("Ma'lumot yo'q")
+        lines.append("    - Ma'lumot yo'q")
 
-    lines += ["", "🏷️ Guruhlar bo'yicha (joriy oy):"]
+    lines += ["", "🏷️ Guruhlar (joriy oy):"]
     if groups_data:
-        for title, expected_current, collected_current, arrears_past in groups_data:
-            lines.append(f"• {title}: kerak {fmt_amount(expected_current)} | yig'ildi {fmt_amount(collected_current)} | o'tgan qarz {fmt_amount(arrears_past)}")
+        for title, expected_current, collected_current, remaining_current, arrears_past in groups_data:
+            lines += [
+                f"• {title}",
+                f"  Kerak: {fmt_amount(expected_current)} so'm | Yig'ildi: {fmt_amount(collected_current)} so'm",
+                f"  Qolgan: {fmt_amount(remaining_current)} so'm | O'tgan qarz: {fmt_amount(arrears_past)} so'm",
+                "",
+            ]
     else:
         lines.append("Guruhlar yo'q")
 
@@ -161,7 +177,7 @@ async def show_finance_dashboard(msg: types.Message):
         types.InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="adm:back:home"),
     )
 
-    await msg.answer("\n".join(lines), reply_markup=kb)
+    await msg.answer("\n".join([l for l in lines if l is not None]).rstrip(), reply_markup=kb)
 
 
 @dp.callback_query_handler(IsAdmin(), text='fin:refresh', state='*')

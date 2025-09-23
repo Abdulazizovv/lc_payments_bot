@@ -12,7 +12,12 @@ def admin_main_menu_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("💵 To'lov qabul qilish", switch_inline_query_current_chat=""),
         InlineKeyboardButton("📊 Moliya", callback_data="adm:finance"),
     )
-    kb.add(InlineKeyboardButton("💳 To'lovlar", callback_data="adm:payments:p:1"))
+    kb.add(
+        InlineKeyboardButton("💳 To'lovlar", callback_data="adm:payments:p:1"),
+    )
+    kb.add(
+        InlineKeyboardButton("💳 Qarzdorlar", callback_data="adm:debtors:p:1"),
+    )
     return kb
 
 
@@ -108,6 +113,7 @@ def payments_list_kb(page: int, total_pages: int) -> InlineKeyboardMarkup:
     nav = pager_buttons("adm:payments", page, total_pages)
     if nav:
         kb.row(*nav)
+    kb.add(InlineKeyboardButton("🔎 Filterlar", callback_data="adm:payments:filters"))
     kb.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="adm:back:home"))
     return kb
 
